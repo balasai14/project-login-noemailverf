@@ -19,7 +19,7 @@ const SignUpPage = () => {
 
 		try {
 			await signup(email, password, name);
-			navigate("/verify-email");
+			navigate("/");
 		} catch (error) {
 			console.log(error);
 		}
