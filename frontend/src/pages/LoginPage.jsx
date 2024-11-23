@@ -1,77 +1,129 @@
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Mail, Lock, Loader } from "lucide-react";
-import { Link } from "react-router-dom";
-import Input from "../components/Input";
+import { useState, useRef, useEffect } from "react";
 import { useAuthStore } from "../store/authStore";
+import Webcam from "react-webcam";
+import { motion } from "framer-motion";
+import { Link } from "react-router-dom";  // Ensure to import Link
 
 const LoginPage = () => {
-	const [email, setEmail] = useState("");
-	const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [image, setImage] = useState(null);
+  const [webcamError, setWebcamError] = useState(null);
+  const webcamRef = useRef(null);
+  const { login, error, isLoading } = useAuthStore();
 
-	const { login, isLoading, error } = useAuthStore();
+  // Track webcam permission error
+  useEffect(() => {
+    const checkWebcamPermission = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        stream.getTracks().forEach(track => track.stop());  // Stop the stream after checking
+      } catch (err) {
+        setWebcamError("Camera permission denied or webcam not accessible.");
+      }
+    };
 
-	const handleLogin = async (e) => {
-		e.preventDefault();
-		await login(email, password);
-	};
+    checkWebcamPermission();
+  }, []);
 
-	return (
-		<motion.div
-			initial={{ opacity: 0, y: 20 }}
-			animate={{ opacity: 1, y: 0 }}
-			transition={{ duration: 0.5 }}
-			className='max-w-md w-full bg-gray-800 bg-opacity-50 backdrop-filter backdrop-blur-xl rounded-2xl shadow-xl overflow-hidden'
-		>
-			<div className='p-8'>
-				<h2 className='text-3xl font-bold mb-6 text-center bg-gradient-to-r from-green-400 to-emerald-500 text-transparent bg-clip-text'>
-					Welcome Back
-				</h2>
+  const handleCapture = () => {
+    if (webcamRef.current) {
+      const imageSrc = webcamRef.current.getScreenshot();
+      if (imageSrc) {
+        setImage(imageSrc); // Store the captured image
+        setWebcamError(null); // Clear any previous errors
+      } else {
+        setWebcamError("Failed to capture image. Please try again.");
+      }
+    } else {
+      setWebcamError("Webcam not available. Please check your camera.");
+    }
+  };
 
-				<form onSubmit={handleLogin}>
-					<Input
-						icon={Mail}
-						type='email'
-						placeholder='Email Address'
-						value={email}
-						onChange={(e) => setEmail(e.target.value)}
-					/>
+  const handleLogin = async (e) => {
+    e.preventDefault();
 
-					<Input
-						icon={Lock}
-						type='password'
-						placeholder='Password'
-						value={password}
-						onChange={(e) => setPassword(e.target.value)}
-					/>
+    if (!image) {
+      setWebcamError("Please capture an image to proceed.");
+      return;
+    }
 
-					<div className='flex items-center mb-6'>
-						<Link to='/forgot-password' className='text-sm text-green-400 hover:underline'>
-							Forgot password?
-						</Link>
-					</div>
-					{error && <p className='text-red-500 font-semibold mb-2'>{error}</p>}
+    try {
+      await login(email, password, image);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
-					<motion.button
-						whileHover={{ scale: 1.02 }}
-						whileTap={{ scale: 0.98 }}
-						className='w-full py-3 px-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-lg shadow-lg hover:from-green-600 hover:to-emerald-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-gray-900 transition duration-200'
-						type='submit'
-						disabled={isLoading}
-					>
-						{isLoading ? <Loader className='w-6 h-6 animate-spin  mx-auto' /> : "Login"}
-					</motion.button>
-				</form>
-			</div>
-			<div className='px-8 py-4 bg-gray-900 bg-opacity-50 flex justify-center'>
-				<p className='text-sm text-gray-400'>
-					Don't have an account?{" "}
-					<Link to='/signup' className='text-green-400 hover:underline'>
-						Sign up
-					</Link>
-				</p>
-			</div>
-		</motion.div>
-	);
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="max-w-md w-full bg-gray-800 bg-opacity-50 backdrop-filter backdrop-blur-xl rounded-2xl shadow-xl overflow-hidden"
+    >
+      <div className="p-8">
+        <h2 className="text-3xl font-bold mb-6 text-center bg-gradient-to-r from-green-400 to-emerald-500 text-transparent bg-clip-text">
+          Login
+        </h2>
+        <form onSubmit={handleLogin}>
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full p-2 mb-4 rounded bg-gray-900 text-white"
+            required
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full p-2 mb-4 rounded bg-gray-900 text-white"
+            required
+          />
+          <div className="mt-4">
+            <Webcam
+              audio={false}
+              ref={webcamRef}
+              screenshotFormat="image/jpeg"
+              className="w-full rounded-lg"
+              onUserMediaError={(err) => setWebcamError("Webcam error: " + err.message)}
+            />
+            <button
+              type="button"
+              onClick={handleCapture}
+              className={`mt-2 w-full py-2 px-4 ${
+                isLoading ? "bg-gray-600" : "bg-gray-700 hover:bg-gray-600"
+              } text-white rounded-lg`}
+              disabled={isLoading}
+            >
+              {isLoading ? "Loading..." : "Capture Image"}
+            </button>
+            {webcamError && <p className="text-red-500 mt-2">{webcamError}</p>}
+          </div>
+          {image && <img src={image} alt="Captured" className="mt-4 rounded-lg" />}
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="mt-4 w-full py-3 px-4 bg-green-500 text-white font-bold rounded-lg shadow-lg hover:bg-green-600"
+          >
+            {isLoading ? "Logging in..." : "Login"}
+          </button>
+        </form>
+        {error && <p className="text-red-500 mt-4">{error}</p>}
+
+        {/* Sign Up Link */}
+        <p className="text-center text-white mt-4">
+          Don't have an account?{" "}
+          <Link to="/signup" className="text-blue-500 hover:underline">
+            Sign Up
+          </Link>
+        </p>
+      </div>
+    </motion.div>
+  );
 };
+
 export default LoginPage;

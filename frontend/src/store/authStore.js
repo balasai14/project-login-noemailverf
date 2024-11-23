@@ -38,21 +38,30 @@ export const useAuthStore = create((set) => ({
 		}
 	  },
 	  
-	login: async (email, password) => {
+	login: async (email, password, image) => {
 		set({ isLoading: true, error: null });
 		try {
-			const response = await axios.post(`${API_URL}/login`, { email, password });
-			set({
-				isAuthenticated: true,
-				user: response.data.user,
-				error: null,
-				isLoading: false,
-			});
+		  const response = await axios.post(`${API_URL}/login`, {
+			email,
+			password,
+			image, // Include the captured image in the request body
+		  });
+	  
+		  set({
+			isAuthenticated: true,
+			user: response.data.user,
+			error: null,
+			isLoading: false,
+		  });
 		} catch (error) {
-			set({ error: error.response?.data?.message || "Error logging in", isLoading: false });
-			throw error;
+		  set({
+			error: error.response?.data?.message || "Error logging in",
+			isLoading: false,
+		  });
+		  throw error;
 		}
 	},
+	  
 
 	logout: async () => {
 		set({ isLoading: true, error: null });
