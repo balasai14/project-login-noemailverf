@@ -4,81 +4,47 @@ import * as faceapi from "face-api.js";
 import { Canvas, Image, ImageData } from "canvas";
 import { User } from "../models/user.model.js";
 import { generateTokenAndSetCookie } from "../utils/generateTokenAndSetCookie.js";
-
-// Monkey patch FaceAPI.js to use Canvas
-faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
-
-// Specify the directory containing FaceAPI.js models
-const modelPath = path.resolve("backend/models");
+import {faceRecognition} from "../utils/faceRecognition.js";  // Custom function to handle face comparison
 
 export const login = async (req, res) => {
-  const { email, password, image } = req.body;
+  const { email, password, image } = req.body; // Receive captured image from the frontend
 
   try {
-    // Validate input
-    if (!email || !password || !image) {
-      return res.status(400).json({ message: "All fields are required." });
-    }
-
-    // Find the user in the database
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).json({ message: "User not found." });
+      return res.status(400).json({ success: false, message: "Invalid credentials" });
     }
 
-    // Verify the password
     const isPasswordValid = await bcryptjs.compare(password, user.password);
     if (!isPasswordValid) {
-      return res.status(401).json({ message: "Invalid credentials." });
+      return res.status(400).json({ success: false, message: "Invalid credentials" });
     }
 
-    // Check if the user has a stored image
-    const storedImage = user.image; // Retrieve stored image from MongoDB
-    if (!storedImage) {
-      return res.status(404).json({ message: "No image found for the user." });
+    // Compare captured image with stored image
+    const isFaceMatched = await faceRecognition(image, user.image);
+    if (!isFaceMatched) {
+      return res.status(400).json({ success: false, message: "Face verification failed" });
     }
 
-    // Load FaceAPI.js models
-    await Promise.all([
-      faceapi.nets.ssdMobilenetv1.loadFromDisk(modelPath),
-      faceapi.nets.faceRecognitionNet.loadFromDisk(modelPath),
-      faceapi.nets.faceLandmark68Net.loadFromDisk(modelPath),
-    ]);
-
-    // Convert input image and stored image to tensors
-    const inputImage = await faceapi.bufferToImage(Buffer.from(image, "base64")); // Login image
-    const dbImage = await faceapi.bufferToImage(Buffer.from(storedImage, "base64")); // Stored image
-
-    // Compute face descriptors for both images
-    const inputDescriptor = await faceapi.computeFaceDescriptor(inputImage);
-    const dbDescriptor = await faceapi.computeFaceDescriptor(dbImage);
-
-    // Calculate Euclidean distance between face descriptors
-    const distance = faceapi.euclideanDistance(inputDescriptor, dbDescriptor);
-
-    // Set a threshold for face verification (adjust if necessary)
-    const threshold = 0.6;
-    if (distance > threshold) {
-      return res.status(401).json({ message: "Face verification failed." });
-    }
-
-    // Generate token and set cookie for authenticated session
     generateTokenAndSetCookie(res, user._id);
 
-    // Return successful login response
+    user.lastLogin = new Date();
+    await user.save();
+
     res.status(200).json({
-      message: "Login successful.",
+      success: true,
+      message: "Logged in successfully",
       user: {
         ...user._doc,
-        password: undefined, // Do not return the password
-        image: undefined, // Do not return the image
+        password: undefined,
       },
     });
   } catch (error) {
-    console.error("Login Error:", error);
-    res.status(500).json({ message: "Server error." });
+    console.log("Error in login ", error);
+    res.status(400).json({ success: false, message: error.message });
   }
 };
+
 
 
 export const signup = async (req, res) => {

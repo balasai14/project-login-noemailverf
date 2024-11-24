@@ -40,13 +40,9 @@ export const useAuthStore = create((set) => ({
 	  
 	login: async (email, password, image) => {
 		set({ isLoading: true, error: null });
-		try {
-		  const response = await axios.post(`${API_URL}/login`, {
-			email,
-			password,
-			image, // Include the captured image in the request body
-		  });
 	  
+		try {
+		  const response = await axios.post(`${API_URL}/login`, { email, password, image });
 		  set({
 			isAuthenticated: true,
 			user: response.data.user,
@@ -54,13 +50,16 @@ export const useAuthStore = create((set) => ({
 			isLoading: false,
 		  });
 		} catch (error) {
+		  console.log("Server Response:", error.response?.data); // Log server response
 		  set({
 			error: error.response?.data?.message || "Error logging in",
 			isLoading: false,
 		  });
-		  throw error;
+		  throw error; // Re-throw for visibility during debugging
 		}
-	},
+	  },
+	  
+	  
 	  
 
 	logout: async () => {
